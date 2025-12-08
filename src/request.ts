@@ -1,13 +1,11 @@
-import type { ParsedUrlQueryInput } from "node:querystring";
-import type { RequestConfig, SafeKyOptions } from "./type";
-import { createHash, createHmac } from "node:crypto";
-import querystring from "node:querystring";
-import ky from "ky";
+import type { RequestConfig, SafeRequestOptions } from "./type";
+import axios from "axios";
+import CryptoJS from "crypto-js";
+import qs from "qs";
 
-const DEFAULT_REQUEST_OPTIONS: SafeKyOptions = {
+const DEFAULT_REQUEST_OPTIONS: SafeRequestOptions = {
     timeout: 3000,
-    retry: 2,
-    throwHttpErrors: false,
+    validateStatus: () => true,
 };
 
 interface RequestOptions {
@@ -17,7 +15,7 @@ interface RequestOptions {
     body?: Uint8Array;
     headers?: Record<string, string>;
     projectName?: string;
-    safeKyOptions?: SafeKyOptions;
+    requestOptions?: SafeRequestOptions;
 }
 
 export class AliCloudSLSLogError extends Error {
@@ -55,33 +53,33 @@ export class Request {
 
         if (options.body) {
             headers["content-length"] = options.body.length.toString();
-            headers["content-md5"] = createHash("md5").update(options.body).digest("hex").toUpperCase();
+            headers["content-md5"] = CryptoJS.MD5(CryptoJS.lib.WordArray.create(options.body)).toString(CryptoJS.enc.Hex).toUpperCase();
         }
         headers.authorization = this.sign(options.method, formatResource(options.path, options.queries), headers);
 
         const url = `http://${buildProjectName(options.projectName)}${this.config.endpoint}${options.path}${buildQueries(options.queries)}`;
-
-        const response = await ky(url, {
+        console.warn(url);
+        const response = await axios(url, {
             method: options.method,
-            body: options.body,
+            data: options.body,
             headers,
             ...DEFAULT_REQUEST_OPTIONS,
-            ...this.config.globalSafeKyOptions,
-            ...options.safeKyOptions,
+            ...this.config.globalRequestOptions,
+            ...options.requestOptions,
         });
 
-        const contentType = response.headers.get("content-type") || "";
+        const contentType = response.headers["content-type"] || "";
         if (!contentType.startsWith("application/json")) {
-            return response.text();
+            return response.data;
         }
 
-        const body: Record<string, any> = await response.json();
+        const body: Record<string, any> = response.data;
 
         if (body.errorCode && body.errorMessage) {
             throw new AliCloudSLSLogError(
                 body.errorMessage,
                 body.errorCode,
-                response.headers.get("x-log-requestid"),
+                response.headers["x-log-requestid"],
             );
         }
 
@@ -103,14 +101,14 @@ export class Request {
         const canonicalizedHeaders = getCanonicalizedHeaders(headers);
         const signString = `${method}\n${contentMD5}\n${contentType}\n`
             + `${date}\n${canonicalizedHeaders}\n${resource}`;
-        const signature = createHmac("sha1", this.config.accessKeySecret).update(signString).digest("base64");
+        const signature = CryptoJS.HmacSHA1(signString, this.config.accessKeySecret).toString(CryptoJS.enc.Base64);
 
         return `LOG ${this.config.accessKeyID}:${signature}`;
     }
 }
 
-function buildQueries(queries?: ParsedUrlQueryInput): string {
-    const str = querystring.stringify(queries);
+function buildQueries(queries?: Record<string, any>): string {
+    const str = qs.stringify(queries);
     return str ? `?${str}` : "";
 }
 
@@ -126,7 +124,7 @@ function formatString(value: any): string {
     return String(value);
 }
 
-function formatResource(path: string, queries?: ParsedUrlQueryInput): string {
+function formatResource(path: string, queries?: Record<string, any>): string {
     if (!queries) {
         return path;
     }

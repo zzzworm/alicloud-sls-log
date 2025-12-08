@@ -1,4 +1,4 @@
-import type { AliCloudSLSLogOption, GetLogsQuery, GetLogsResponse, LogData, SafeKyOptions } from "./type";
+import type { AliCloudSLSLogOption, GetLogsQuery, GetLogsResponse, LogData, SafeRequestOptions } from "./type";
 import proto from "protobufjs";
 import { Request } from "./request";
 
@@ -40,7 +40,7 @@ export class AliCloudSLSLog extends Request {
         super(config);
     }
 
-    public async putLogs(projectName: string, logstoreName: string, data: LogData, safeKyOptions?: SafeKyOptions): Promise<void> {
+    public async putLogs(projectName: string, logstoreName: string, data: LogData, requestOptions?: SafeRequestOptions): Promise<void> {
         const payload: Record<string, any> = {
             Logs: data.logs.map((log) => {
                 const { seconds, nanoseconds } = splitTimestamp(log.timestamp);
@@ -79,11 +79,11 @@ export class AliCloudSLSLog extends Request {
             },
             projectName,
             body,
-            safeKyOptions,
+            requestOptions,
         });
     }
 
-    public async getLogs<T extends Record<string, any> = Record<string, any>>(projectName: string, logstoreName: string, query: GetLogsQuery, safeKyOptions?: SafeKyOptions): Promise<GetLogsResponse<T>> {
+    public async getLogs<T extends Record<string, any> = Record<string, any>>(projectName: string, logstoreName: string, query: GetLogsQuery, requestOptions?: SafeRequestOptions): Promise<GetLogsResponse<T>> {
         const fromSec = splitTimestamp(query.from).seconds;
         const toSec = splitTimestamp(query.to).seconds;
 
@@ -97,7 +97,7 @@ export class AliCloudSLSLog extends Request {
                 to: toSec,
             },
             projectName,
-            safeKyOptions,
+            requestOptions,
         });
     }
 }

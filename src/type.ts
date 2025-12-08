@@ -1,6 +1,6 @@
-import type { Options as KyOptions } from "ky";
+import type { AxiosRequestConfig } from "axios";
 
-export type SafeKyOptions = Omit<KyOptions, "method" | "body" | "headers">;
+export type SafeRequestOptions = Omit<AxiosRequestConfig, "method" | "data" | "headers">;
 
 export interface LogEntity {
     content: Record<string, any>;
@@ -37,7 +37,7 @@ export interface AliCloudSLSLogOption {
     accessKeyID: string;
     accessKeySecret: string;
     endpoint: string;
-    globalSafeKyOptions?: SafeKyOptions;
+    globalRequestOptions?: SafeRequestOptions;
 }
 
 export interface RequestConfig {
@@ -45,5 +45,5 @@ export interface RequestConfig {
     accessKeyID: string;
     accessKeySecret: string;
     stsToken?: string;
-    globalSafeKyOptions?: SafeKyOptions;
+    globalRequestOptions?: SafeRequestOptions;
 }
