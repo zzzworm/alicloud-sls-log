@@ -1,5 +1,4 @@
 import type { RequestConfig, SafeRequestOptions } from "./type";
-import axios from "axios";
 import CryptoJS from "crypto-js";
 import qs from "qs";
 
@@ -53,54 +52,90 @@ export class Request {
 
         if (options.body) {
             headers["content-length"] = options.body.length.toString();
-            headers["content-md5"] = CryptoJS.MD5(CryptoJS.lib.WordArray.create(options.body)).toString(CryptoJS.enc.Hex).toUpperCase();
+            // 使用 crypto-js 计算 MD5
+            // CryptoJS.lib.WordArray.create 可以直接接受 Uint8Array
+            const bodyWordArray = CryptoJS.lib.WordArray.create(options.body);
+            headers["content-md5"] = CryptoJS.MD5(bodyWordArray).toString(CryptoJS.enc.Hex).toUpperCase();
         }
-        headers.authorization = this.sign(options.method, formatResource(options.path, options.queries), headers);
+        // SLS 签名规范：
+        // - POST 请求：resource 只包含 path
+        // - GET 请求：resource 包含 path 和查询参数
+        const resource = options.method === "GET" && options.queries
+            ? formatResource(options.path, options.queries)
+            : options.path;
+        headers.authorization = this.sign(options.method, resource, headers);
 
-        const url = `http://${buildProjectName(options.projectName)}${this.config.endpoint}${options.path}${buildQueries(options.queries)}`;
-        console.warn(url);
-        const response = await axios(url, {
-            method: options.method,
-            data: options.body,
-            headers,
-            ...DEFAULT_REQUEST_OPTIONS,
-            ...this.config.globalRequestOptions,
-            ...options.requestOptions,
-        });
+        const url = `https://${buildProjectName(options.projectName)}${this.config.endpoint}${options.path}${buildQueries(options.queries)}`;
+        
+        // 使用 fetch 替代 axios
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), (options.requestOptions?.timeout || this.config.globalRequestOptions?.timeout || DEFAULT_REQUEST_OPTIONS.timeout || 3000) as number);
+        
+        try {
+            const response = await fetch(url, {
+                method: options.method,
+                body: options.body || undefined,
+                headers,
+                signal: controller.signal,
+            });
 
-        const contentType = response.headers["content-type"] || "";
-        if (!contentType.startsWith("application/json")) {
-            return response.data;
+            clearTimeout(timeoutId);
+
+            const contentType = response.headers.get("content-type") || "";
+            if (!contentType.startsWith("application/json")) {
+                return await response.arrayBuffer();
+            }
+
+            const body: Record<string, any> = await response.json();
+
+            if (body.errorCode && body.errorMessage) {
+                throw new AliCloudSLSLogError(
+                    body.errorMessage,
+                    body.errorCode,
+                    response.headers.get("x-log-requestid"),
+                );
+            }
+
+            if (body.Error) {
+                throw new AliCloudSLSLogError(
+                    body.Error.Message,
+                    body.Error.Code,
+                    body.Error.RequestId,
+                );
+            }
+
+            return body;
+        } catch (error: any) {
+            clearTimeout(timeoutId);
+            if (error.name === "AbortError") {
+                throw new Error("Request timeout");
+            }
+            throw error;
         }
-
-        const body: Record<string, any> = response.data;
-
-        if (body.errorCode && body.errorMessage) {
-            throw new AliCloudSLSLogError(
-                body.errorMessage,
-                body.errorCode,
-                response.headers["x-log-requestid"],
-            );
-        }
-
-        if (body.Error) {
-            throw new AliCloudSLSLogError(
-                body.Error.Message,
-                body.Error.Code,
-                body.Error.RequestId,
-            );
-        }
-
-        return body;
     }
 
     private sign(method: string, resource: string, headers: Record<string, string>): string {
-        const contentMD5 = headers["content-md5"] || "";
-        const contentType = headers["content-type"] || "";
-        const date = headers.date;
+        // 获取 header 值（不区分大小写查找）
+        const getHeader = (key: string): string => {
+            const lowerKey = key.toLowerCase();
+            for (const [k, v] of Object.entries(headers)) {
+                if (k.toLowerCase() === lowerKey) {
+                    return v || "";
+                }
+            }
+            return "";
+        };
+        
+        const contentMD5 = getHeader("content-md5");
+        const contentType = getHeader("content-type");
+        const date = getHeader("date");
         const canonicalizedHeaders = getCanonicalizedHeaders(headers);
-        const signString = `${method}\n${contentMD5}\n${contentType}\n`
-            + `${date}\n${canonicalizedHeaders}\n${resource}`;
+        
+        // 构建签名字符串：METHOD\nCONTENT-MD5\nCONTENT-TYPE\nDATE\nCANONICALIZED-HEADERS\nRESOURCE
+        // 如果 canonicalizedHeaders 为空，仍然需要 \n 分隔符
+        const signString = `${method}\n${contentMD5}\n${contentType}\n${date}\n${canonicalizedHeaders}\n${resource}`;
+        
+        // 使用 crypto-js 进行 HMAC-SHA1 签名
         const signature = CryptoJS.HmacSHA1(signString, this.config.accessKeySecret).toString(CryptoJS.enc.Base64);
 
         return `LOG ${this.config.accessKeyID}:${signature}`;
@@ -143,9 +178,18 @@ function formatResource(path: string, queries?: Record<string, any>): string {
 }
 
 function getCanonicalizedHeaders(headers: Record<string, string>): string {
-    return Object.keys(headers)
-        .filter(key => key.startsWith("x-log-") || key.startsWith("x-acs-"))
-        .sort()
-        .map(key => `${key}:${headers[key]!.trim()}`)
+    const canonicalizedKeys = Object.keys(headers)
+        .filter(key => {
+            const lowerKey = key.toLowerCase();
+            return lowerKey.startsWith("x-log-") || lowerKey.startsWith("x-acs-");
+        })
+        .sort();
+    
+    if (canonicalizedKeys.length === 0) {
+        return "";
+    }
+    
+    return canonicalizedKeys
+        .map(key => `${key.toLowerCase()}:${headers[key]!.trim()}`)
         .join("\n");
 }
