@@ -1,7 +1,7 @@
 {
   "name": "alicloud-sls-log",
   "type": "module",
-  "version": "0.4.3",
+  "version": "0.4.4",
   "author": "Kevin Cui <bh@bugs.cc>",
   "license": "MIT",
   "repository": "git@github.com:BlackHole1/alicloud-sls-log.git",
@@ -56,6 +56,7 @@
     "@types/qs": "^6.14.0",
     "eslint": "^9.38.0",
     "eslint-plugin-format": "^1.0.2",
-    "tsdown": "^0.15.9"
+    "tsdown": "^0.15.9",
+    "typescript": "^5"
   }
 }
