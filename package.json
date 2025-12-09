@@ -5,25 +5,31 @@
   "author": "Kevin Cui <bh@bugs.cc>",
   "license": "MIT",
   "repository": "git@github.com:BlackHole1/alicloud-sls-log.git",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.cts",
   "exports": {
     ".": {
       "types": "./dist/index.d.mts",
-      "import": "./dist/index.mjs"
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.cjs"
     },
     "./client": {
       "types": "./dist/client.d.mts",
-      "import": "./dist/client.mjs"
+      "import": "./dist/client.mjs",
+      "require": "./dist/client.cjs"
     },
     "./request": {
       "types": "./dist/request.d.mts",
-      "import": "./dist/request.mjs"
+      "import": "./dist/request.mjs",
+      "require": "./dist/request.cjs"
     },
     "./utils": {
       "types": "./dist/utils.d.mts",
-      "import": "./dist/utils.mjs"
+      "import": "./dist/utils.mjs",
+      "require": "./dist/utils.cjs"
     }
   },
-  "module": "src/index.ts",
   "files": [
     "dist",
     "package.json"

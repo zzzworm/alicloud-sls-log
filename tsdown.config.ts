@@ -1,7 +1,7 @@
 import { defineConfig } from "tsdown";
 
 export default defineConfig({
-    format: "esm",
+    format: ["esm", "cjs"],
     dts: true,
     sourcemap: true,
     clean: true,
