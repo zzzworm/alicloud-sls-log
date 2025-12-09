@@ -47,9 +47,11 @@ export class AliCloudSLSLog extends Request {
                 return {
                     Time: seconds,
                     TimeNs: log.timestampNsPart || nanoseconds,
-                    Contents: Object.entries(log.content).map(([Key, Value]) => {
-                        return { Key, Value };
-                    }),
+                    Contents: Object.entries(log.content)
+                        .filter(([_, Value]) => Value !== null && Value !== undefined)
+                        .map(([Key, Value]) => {
+                            return { Key, Value: String(Value) };
+                        }),
                 };
             }),
         };
