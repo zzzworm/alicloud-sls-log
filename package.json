@@ -1,7 +1,7 @@
 {
   "name": "alicloud-sls-log",
   "type": "module",
-  "version": "0.4.2",
+  "version": "0.4.3",
   "author": "Kevin Cui <bh@bugs.cc>",
   "license": "MIT",
   "repository": "git@github.com:BlackHole1/alicloud-sls-log.git",
@@ -38,7 +38,8 @@
     "build": "tsdown",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
-    "ts-check": "tsc --noEmit"
+    "ts-check": "tsc --noEmit",
+    "prepare": "npm run build"
   },
   "peerDependencies": {
     "typescript": "^5"
